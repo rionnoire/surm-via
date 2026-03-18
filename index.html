@@ -1,38 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Camera RGB Capture</title>
+  <title>Camera Single Pixel Capture</title>
   <style>
     video, canvas { margin: 10px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
-  <h2>Camera RGB Capture</h2>
+  <h2>Camera Single Pixel Capture</h2>
 
-  <video id="v1" autoplay></video>
+  <button id="startBtn">Start Camera</button><br>
+  <video id="v1" width="320" height="240" autoplay muted playsinline></video>
   <canvas id="c1" width="320" height="240"></canvas>
-  <canvas id="c2" width="40" height="40"></canvas>
-  <div>
-    RGB: <span id="s1"></span>
-  </div>
+  <div>Pixel RGBA: <span id="s1"></span></div>
 
   <script>
-    let player, c, g, g2, s1;
+    let player, c, g, s1;
 
-    async function start() {
+    async function startCamera() {
       player = document.getElementById("v1");
       c = document.getElementById("c1");
       g = c.getContext("2d");
-      g2 = document.getElementById("c2").getContext("2d");
       s1 = document.getElementById("s1");
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
         player.srcObject = stream;
-        player.play();
 
-        setInterval(capture, 500); // capture every 0.5s
-      } catch (err) {
+        player.onloadedmetadata = () => {
+          player.play();
+          setInterval(capture, 500); // capture every 0.5s
+        };
+      } catch(err) {
         console.error("Camera error:", err);
         alert("Camera failed: " + err.name + " – " + err.message);
       }
@@ -41,20 +40,28 @@
     function capture() {
       if (!player || player.readyState < 2) return;
 
-      // Draw video frame to canvas
       g.drawImage(player, 0, 0, c.width, c.height);
-      g.strokeRect(98, 98, 44, 44);
 
-      // Extract 40x40 pixels from center
-      const d = g.getImageData(100, 100, 40, 40);
-      g2.putImageData(d, 0, 0);
+      // Pick one pixel at the center
+      const x = Math.floor(c.width / 2);
+      const y = Math.floor(c.height / 2);
+      const pixel = g.getImageData(x, y, 1, 1).data;
+      const [r,gVal,b,a] = pixel;
 
-      // Show first pixel RGBA in span
-      const [r, gValue, b, a] = d.data;
-      s1.textContent = `R:${r} G:${gValue} B:${b} A:${a}`;
+      s1.textContent = `R:${r} G:${gVal} B:${b} A:${a}`;
+
+      // Send pixel to Google Sheet
+      fetch('https://script.google.com/macros/s/AKfycbzXntUEiqsBhKi9-vri40xl8S8Ze9YIooaZf0kxxRD7FNUnsOKOhz6bUJOJOSHa5cK07Q/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ r, g: gVal, b, a })
+      })
+      .then(res => res.json())
+      .then(data => console.log('Sheet updated', data))
+      .catch(err => console.error('Error sending RGB', err));
     }
 
-    window.onload = start;
+    document.getElementById("startBtn").addEventListener("click", startCamera);
   </script>
 </body>
 </html>
