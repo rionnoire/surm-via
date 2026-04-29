@@ -292,6 +292,12 @@
       }, { passive:false });
     });
 
+    pts.forEach(({x,y}, i) => {
+  const [r,gv,b] = g.getImageData(x,y,1,1).data;
+  console.log(`sq${i}: R${r} G${gv} B${b}`);
+  board[Math.floor(i/4)][i%4] = inferPiece(r, gv, b);
+});
+
     document.getElementById("captureBtn").addEventListener("click", capture);
   </script>
 </body>
