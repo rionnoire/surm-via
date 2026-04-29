@@ -11,7 +11,7 @@
 
   <button id="startBtn">Start Camera</button><br>
   <video id="v1" width="320" height="240" autoplay muted playsinline></video>
-  <canvas id="c1" width="320" height="240"></canvas>
+  <canvas id="c1" width="240" height="240"></canvas>
   <div>Pixel RGBA: <span id="s1"></span></div>
 
   <script>
@@ -39,6 +39,12 @@
 
     function capture() {
       if (!player || player.readyState < 2) return;
+
+      const vw = player.videoWidth;
+  const vh = player.videoHeight;
+  const size = Math.min(vw, vh); // largest square that fits
+  const sx = Math.floor((vw - size) / 2); // source x offset
+  const sy = Math.floor((vh - size) / 2); // source y offset
 
       g.drawImage(player, 0, 0, c.width, c.height);
 
