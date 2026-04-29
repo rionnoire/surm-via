@@ -3,28 +3,38 @@
 <head>
   <title>Camera Pixel Capture</title>
   <style>
-    video, canvas { margin: 10px; border: 1px solid #ccc; }
+    #container { position: relative; display: inline-block; margin: 10px; }
+    video { display: block; border: 1px solid #ccc; }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      cursor: crosshair;
+    }
+    canvas { margin: 10px; border: 1px solid #ccc; }
     #pixelGrid {
       display: grid;
       grid-template-columns: repeat(4, 60px);
       gap: 4px;
       margin: 10px;
     }
-    .pixelBox {
-      width: 60px;
-      height: 60px;
-      border: 1px solid #aaa;
-    }
+    .pixelBox { width: 60px; height: 60px; border: 1px solid #aaa; }
   </style>
 </head>
 <body>
   <h2>Camera Pixel Capture</h2>
-  <button id="startBtn">Start Camera</button><br>
-  <video id="v1" width="320" height="240" autoplay muted playsinline></video>
+  <button id="startBtn">Start Camera</button>
+  <p style="margin:4px 10px;font-size:13px;color:#555">Click and drag on the video to select crop area</p>
+  <div id="container">
+    <video id="v1" width="320" height="240" autoplay muted playsinline></video>
+    <canvas id="overlay" width="320" height="240"></canvas>
+  </div>
   <canvas id="c1" width="240" height="240"></canvas>
   <div id="pixelGrid"></div>
+
   <script>
-    let player, c, g;
+    let player, c, g, ov, og;
+    let crop = null; // { sx, sy, size } in video pixel coords
+    let dragging = false, dragStart = null, dragEnd = null;
 
     // Build 16 boxes
     const grid = document.getElementById("pixelGrid");
@@ -39,18 +49,48 @@
       const points = [];
       const stepX = w / 5;
       const stepY = h / 5;
-      for (let row = 1; row <= 4; row++) {
-        for (let col = 1; col <= 4; col++) {
+      for (let row = 1; row <= 4; row++)
+        for (let col = 1; col <= 4; col++)
           points.push({ x: Math.floor(stepX * col), y: Math.floor(stepY * row) });
-        }
-      }
       return points;
+    }
+
+    // Convert canvas display coords to video source coords
+    function toVideoCoords(cx, cy) {
+      const vw = player.videoWidth;
+      const vh = player.videoHeight;
+      return {
+        x: Math.floor(cx * vw / ov.width),
+        y: Math.floor(cy * vh / ov.height)
+      };
+    }
+
+    function drawSelectionBox(x1, y1, x2, y2) {
+      og.clearRect(0, 0, ov.width, ov.height);
+      const x = Math.min(x1, x2);
+      const y = Math.min(y1, y2);
+      const side = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)); // force square
+      og.strokeStyle = 'red';
+      og.lineWidth = 2;
+      og.setLineDash([5, 3]);
+      og.strokeRect(x, y, side, side);
     }
 
     async function startCamera() {
       player = document.getElementById("v1");
       c = document.getElementById("c1");
       g = c.getContext("2d");
+      ov = document.getElementById("overlay");
+      og = ov.getContext("2d");
+
+      // Default crop: centered square
+      const setDefaultCrop = () => {
+        const vw = player.videoWidth;
+        const vh = player.videoHeight;
+        const size = Math.min(vw, vh);
+        crop = { sx: Math.floor((vw - size) / 2), sy: Math.floor((vh - size) / 2), size };
+      };
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 320, height: 240, facingMode: "environment" }
@@ -58,30 +98,66 @@
         player.srcObject = stream;
         player.onloadedmetadata = () => {
           player.play();
+          setDefaultCrop();
           setInterval(capture, 500);
         };
       } catch(err) {
         alert("Camera failed: " + err.name + " – " + err.message);
       }
-    }
 
-    function capture() {
-      if (!player || player.readyState < 2) return;
-      const vw = player.videoWidth;
-      const vh = player.videoHeight;
-      const size = Math.min(vw, vh);
-      const sx = Math.floor((vw - size) / 2);
-      const sy = Math.floor((vh - size) / 2);
-      g.drawImage(player, sx, sy, size, size, 0, 0, c.width, c.height);
+      // Drag events on overlay canvas
+      ov.addEventListener("mousedown", e => {
+        dragging = true;
+        dragStart = { x: e.offsetX, y: e.offsetY };
+      });
+      ov.addEventListener("mousemove", e => {
+        if (!dragging) return;
+        dragEnd = { x: e.offsetX, y: e.offsetY };
+        drawSelectionBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
+      });
+      ov.addEventListener("mouseup", e => {
+        dragging = false;
+        if (!dragStart) return;
+        dragEnd = { x: e.offsetX, y: e.offsetY };
+        const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
+        const dispX = Math.min(dragStart.x, dragEnd.x);
+        const dispY = Math.min(dragStart.y, dragEnd.y);
+        const tl = toVideoCoords(dispX, dispY);
+        const br = toVideoCoords(dispX + side, dispY + side);
+        crop = { sx: tl.x, sy: tl.y, size: br.x - tl.x };
+      });
 
-      const points = getSamplePoints(c.width, c.height);
-      points.forEach(({ x, y }, i) => {
-        const [r, gVal, b] = g.getImageData(x, y, 1, 1).data;
-        document.getElementById(`px${i}`).style.backgroundColor = `rgb(${r},${gVal},${b})`;
+      // Touch support
+      ov.addEventListener("touchstart", e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        const rect = ov.getBoundingClientRect();
+        dragging = true;
+        dragStart = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      });
+      ov.addEventListener("touchmove", e => {
+        e.preventDefault();
+        if (!dragging) return;
+        const t = e.touches[0];
+        const rect = ov.getBoundingClientRect();
+        dragEnd = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+        drawSelectionBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
+      });
+      ov.addEventListener("touchend", e => {
+        e.preventDefault();
+        dragging = false;
+        if (!dragStart || !dragEnd) return;
+        const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
+        const dispX = Math.min(dragStart.x, dragEnd.x);
+        const dispY = Math.min(dragStart.y, dragEnd.y);
+        const tl = toVideoCoords(dispX, dispY);
+        crop = { sx: tl.x, sy: tl.y, size: toVideoCoords(dispX + side, dispY + side).x - tl.x };
       });
     }
 
-    document.getElementById("startBtn").addEventListener("click", startCamera);
-  </script>
-</body>
-</html>
+    function capture() {
+      if (!player || player.readyState < 2 || !crop) return;
+      g.drawImage(player, crop.sx, crop.sy, crop.size, crop.size, 0, 0, c.width, c.height);
+      const points = getSamplePoints(c.width, c.height);
+      points.forEach(({ x, y }, i) => {
+        const [r, g
