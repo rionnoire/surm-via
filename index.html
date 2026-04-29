@@ -1,171 +1,260 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Camera Pixel Capture</title>
+  <title>Checkers Vision</title>
   <style>
-    #container { position: relative; display: inline-block; margin: 10px; }
-    video { display: block; border: 1px solid #ccc; }
-    #overlay {
-      position: absolute;
-      top: 0; left: 0;
-      cursor: crosshair;
+    body { font-family: sans-serif; padding: 10px; background: #1a1a1a; color: #eee; }
+    h2 { margin: 0 0 10px; }
+
+    #container { position: relative; display: inline-block; }
+    video { display: block; }
+    #overlay { position: absolute; top: 0; left: 0; cursor: crosshair; }
+
+    #c1 { display: none; } /* hidden processing canvas */
+
+    #controls { margin: 10px 0; display: flex; gap: 8px; align-items: center; }
+    button {
+      padding: 10px 18px; font-size: 15px; cursor: pointer;
+      background: #444; color: #eee; border: 1px solid #666; border-radius: 6px;
     }
-    canvas { margin: 10px; border: 1px solid #ccc; }
+    button:active { background: #666; }
+    #captureBtn { background: #c0392b; border-color: #e74c3c; }
+    #captureBtn:active { background: #e74c3c; }
+
     #pixelGrid {
       display: grid;
-      grid-template-columns: repeat(4, 60px);
-      gap: 4px;
-      margin: 10px;
+      grid-template-columns: repeat(4, 48px);
+      gap: 3px;
+      margin: 10px 0;
     }
-    .pixelBox { width: 60px; height: 60px; border: 1px solid #aaa; }
+    .pixelBox {
+      width: 48px; height: 48px;
+      border: 1px solid #444;
+      background: #222;
+      border-radius: 3px;
+    }
+
+    #status {
+      margin-top: 10px;
+      padding: 10px;
+      background: #2a2a2a;
+      border-left: 4px solid #c0392b;
+      border-radius: 4px;
+      font-size: 15px;
+      min-height: 40px;
+    }
+    #status.good { border-color: #27ae60; }
+    #status.warn { border-color: #f39c12; }
   </style>
 </head>
 <body>
-  <h2>Camera Pixel Capture</h2>
-  <button id="startBtn">Start Camera</button>
-  <p style="margin:4px 10px;font-size:13px;color:#555">Click and drag on the video to select crop area</p>
+  <h2>Checkers Vision</h2>
+
+  <div id="controls">
+    <button id="startBtn">Start Camera</button>
+    <button id="captureBtn" disabled>Capture</button>
+    <span id="label" style="font-size:13px;color:#888">Drag video to set crop area</span>
+  </div>
+
   <div id="container">
     <video id="v1" width="320" height="240" autoplay muted playsinline></video>
     <canvas id="overlay" width="320" height="240"></canvas>
   </div>
+
   <canvas id="c1" width="240" height="240"></canvas>
-  <div id="pixelGrid"></div>
 
-  <script>
+  <div id="pixelGrid">
+    <div class="pixelBox" id="px0"></div><div class="pixelBox" id="px1"></div>
+    <div class="pixelBox" id="px2"></div><div class="pixelBox" id="px3"></div>
+    <div class="pixelBox" id="px4"></div><div class="pixelBox" id="px5"></div>
+    <div class="pixelBox" id="px6"></div><div class="pixelBox" id="px7"></div>
+    <div class="pixelBox" id="px8"></div><div class="pixelBox" id="px9"></div>
+    <div class="pixelBox" id="px10"></div><div class="pixelBox" id="px11"></div>
+    <div class="pixelBox" id="px12"></div><div class="pixelBox" id="px13"></div>
+    <div class="pixelBox" id="px14"></div><div class="pixelBox" id="px15"></div>
+  </div>
+
+  <div id="status">Waiting for camera…</div>
+
+  <script type="module">
+    import { chooseDobotMove, getLegalMoves, WHITE, RED } from './engine.js';
+
     let player, c, g, ov, og;
-    let crop = null; // { sx, sy, size } in video pixel coords
+    let crop = null;
     let dragging = false, dragStart = null, dragEnd = null;
+    let lastBoard = null; // last board state from API
+    let capturing = false;
 
-    // Build 16 boxes
-    const grid = document.getElementById("pixelGrid");
-    for (let i = 0; i < 16; i++) {
-      const div = document.createElement("div");
-      div.className = "pixelBox";
-      div.id = `px${i}`;
-      grid.appendChild(div);
-    }
+    const setStatus = (msg, mood='') => {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = mood;
+    };
 
+    // ---------- pixel grid ----------
     function getSamplePoints(w, h) {
-      const points = [];
-      const stepX = w / 5;
-      const stepY = h / 5;
+      const pts = [];
+      const stepX = w / 5, stepY = h / 5;
       for (let row = 1; row <= 4; row++)
         for (let col = 1; col <= 4; col++)
-          points.push({ x: Math.floor(stepX * col), y: Math.floor(stepY * row) });
-      return points;
+          pts.push({ x: Math.floor(stepX * col), y: Math.floor(stepY * row) });
+      return pts;
     }
 
-    // Convert canvas display coords to video source coords
+    function updatePixelGrid() {
+      if (!crop) return;
+      const vw = player.videoWidth, vh = player.videoHeight;
+      const size = Math.min(vw, vh);
+      const sx = crop.sx ?? Math.floor((vw - size) / 2);
+      const sy = crop.sy ?? Math.floor((vh - size) / 2);
+      const cs = crop.size ?? size;
+      g.drawImage(player, sx, sy, cs, cs, 0, 0, c.width, c.height);
+      getSamplePoints(c.width, c.height).forEach(({ x, y }, i) => {
+        const [r, gv, b] = g.getImageData(x, y, 1, 1).data;
+        document.getElementById(`px${i}`).style.backgroundColor = `rgb(${r},${gv},${b})`;
+      });
+    }
+
+    // ---------- capture & suggest move ----------
+    async function doCapture() {
+      if (capturing) return;
+      capturing = true;
+      setStatus('Capturing…', 'warn');
+
+      // grab current pixel snapshot as base64
+      updatePixelGrid();
+      const dataUrl = c.toDataURL('image/jpeg', 0.8);
+
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] }
+                },
+                {
+                  type: 'text',
+                  text: `This is a 4x4 checkers board image. The board has 4 rows and 4 columns.
+Identify the piece in each cell. Pieces are: empty, red, white, red_king, white_king.
+Respond ONLY with a JSON object in this exact format, no markdown, no explanation:
+{"board":[["empty","red","white","empty"],["red","empty","empty","white"],["empty","empty","red","empty"],["white","empty","empty","red"]]}`
+                }
+              ]
+            }]
+          })
+        });
+
+        const data = await res.json();
+        const text = data.content?.find(b => b.type === 'text')?.text ?? '';
+
+        let parsed;
+        try { parsed = JSON.parse(text.trim()); }
+        catch { throw new Error('Bad JSON from API: ' + text); }
+
+        // map names to engine constants
+        const NAME_MAP = { empty:0, red:1, white:2, red_king:3, white_king:4 };
+        const board = parsed.board.map(row => row.map(cell => NAME_MAP[cell] ?? 0));
+
+        lastBoard = board;
+
+        // suggest Dobot's best move
+        const move = chooseDobotMove(board);
+        if (!move) {
+          setStatus('No moves available for Dobot (WHITE). Game may be over.', 'warn');
+        } else {
+          const from = `(${move.fromR},${move.fromC})`;
+          const to   = `(${move.r},${move.c})`;
+          const cap  = move.capR !== null ? ` — captures piece at (${move.capR},${move.capC})` : '';
+          setStatus(`Dobot move: ${from} → ${to}${cap}`, 'good');
+        }
+
+      } catch (err) {
+        setStatus('Error: ' + err.message, 'warn');
+        console.error(err);
+      }
+
+      capturing = false;
+    }
+
+    // ---------- drag to crop ----------
     function toVideoCoords(cx, cy) {
-      const vw = player.videoWidth;
-      const vh = player.videoHeight;
       return {
-        x: Math.floor(cx * vw / ov.width),
-        y: Math.floor(cy * vh / ov.height)
+        x: Math.floor(cx * player.videoWidth / ov.width),
+        y: Math.floor(cy * player.videoHeight / ov.height)
       };
     }
 
-    function drawSelectionBox(x1, y1, x2, y2) {
+    function drawBox(x1, y1, x2, y2) {
       og.clearRect(0, 0, ov.width, ov.height);
-      const x = Math.min(x1, x2);
-      const y = Math.min(y1, y2);
-      const side = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)); // force square
-      og.strokeStyle = 'red';
+      const x = Math.min(x1, x2), y = Math.min(y1, y2);
+      const side = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+      og.strokeStyle = '#e74c3c';
       og.lineWidth = 2;
       og.setLineDash([5, 3]);
       og.strokeRect(x, y, side, side);
     }
 
-    async function startCamera() {
-      player = document.getElementById("v1");
-      c = document.getElementById("c1");
-      g = c.getContext("2d");
-      ov = document.getElementById("overlay");
-      og = ov.getContext("2d");
+    function commitDrag(x1, y1, x2, y2) {
+      const side = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+      const dx = Math.min(x1, x2), dy = Math.min(y1, y2);
+      const tl = toVideoCoords(dx, dy);
+      const br = toVideoCoords(dx + side, dy);
+      crop = { sx: tl.x, sy: tl.y, size: br.x - tl.x };
+    }
 
-      // Default crop: centered square
-      const setDefaultCrop = () => {
-        const vw = player.videoWidth;
-        const vh = player.videoHeight;
-        const size = Math.min(vw, vh);
-        crop = { sx: Math.floor((vw - size) / 2), sy: Math.floor((vh - size) / 2), size };
-      };
+    // ---------- camera start ----------
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      player = document.getElementById('v1');
+      c = document.getElementById('c1');
+      g = c.getContext('2d');
+      ov = document.getElementById('overlay');
+      og = ov.getContext('2d');
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 320, height: 240, facingMode: "environment" }
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         player.srcObject = stream;
-        player.onloadedmetadata = () => {
-          player.play();
-          setDefaultCrop();
-          setInterval(capture, 500);
-        };
+        await player.play();
+
+        const vw = player.videoWidth, vh = player.videoHeight;
+        const size = Math.min(vw, vh);
+        crop = { sx: Math.floor((vw - size) / 2), sy: Math.floor((vh - size) / 2), size };
+
+        document.getElementById('captureBtn').disabled = false;
+        setStatus('Camera ready. Drag to set crop, then capture.', '');
+
+        // live pixel grid update
+        setInterval(updatePixelGrid, 200);
+
       } catch(err) {
-        alert("Camera failed: " + err.name + " – " + err.message);
+        alert('Camera failed: ' + err.name + ' – ' + err.message);
       }
 
-      // Drag events on overlay canvas
-      ov.addEventListener("mousedown", e => {
-        dragging = true;
-        dragStart = { x: e.offsetX, y: e.offsetY };
-      });
-      ov.addEventListener("mousemove", e => {
-        if (!dragging) return;
-        dragEnd = { x: e.offsetX, y: e.offsetY };
-        drawSelectionBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
-      });
-      ov.addEventListener("mouseup", e => {
-        dragging = false;
-        if (!dragStart) return;
-        dragEnd = { x: e.offsetX, y: e.offsetY };
-        const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
-        const dispX = Math.min(dragStart.x, dragEnd.x);
-        const dispY = Math.min(dragStart.y, dragEnd.y);
-        const tl = toVideoCoords(dispX, dispY);
-        const br = toVideoCoords(dispX + side, dispY + side);
-        crop = { sx: tl.x, sy: tl.y, size: br.x - tl.x };
+      // mouse
+      ov.addEventListener('mousedown', e => { dragging = true; dragStart = { x: e.offsetX, y: e.offsetY }; });
+      ov.addEventListener('mousemove', e => { if (dragging) drawBox(dragStart.x, dragStart.y, e.offsetX, e.offsetY); });
+      ov.addEventListener('mouseup', e => {
+        if (!dragging) return; dragging = false;
+        commitDrag(dragStart.x, dragStart.y, e.offsetX, e.offsetY);
       });
 
-      // Touch support
-      ov.addEventListener("touchstart", e => {
-        e.preventDefault();
-        const t = e.touches[0];
-        const rect = ov.getBoundingClientRect();
-        dragging = true;
-        dragStart = { x: t.clientX - rect.left, y: t.clientY - rect.top };
-      });
-      ov.addEventListener("touchmove", e => {
-        e.preventDefault();
-        if (!dragging) return;
-        const t = e.touches[0];
-        const rect = ov.getBoundingClientRect();
-        dragEnd = { x: t.clientX - rect.left, y: t.clientY - rect.top };
-        drawSelectionBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
-      });
-      ov.addEventListener("touchend", e => {
-        e.preventDefault();
-        dragging = false;
-        if (!dragStart || !dragEnd) return;
-        const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
-        const dispX = Math.min(dragStart.x, dragEnd.x);
-        const dispY = Math.min(dragStart.y, dragEnd.y);
-        const tl = toVideoCoords(dispX, dispY);
-        crop = { sx: tl.x, sy: tl.y, size: toVideoCoords(dispX + side, dispY + side).x - tl.x };
-      });
-    }
+      // touch
+      const tPos = (e) => { const r = ov.getBoundingClientRect(), t = e.touches[0]; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+      ov.addEventListener('touchstart', e => { e.preventDefault(); dragging = true; dragStart = tPos(e); }, { passive: false });
+      ov.addEventListener('touchmove',  e => { e.preventDefault(); if (dragging) { dragEnd = tPos(e); drawBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y); } }, { passive: false });
+      ov.addEventListener('touchend',   e => { e.preventDefault(); if (dragging && dragEnd) { dragging = false; commitDrag(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y); } }, { passive: false });
+    });
 
-    function capture() {
-      if (!player || player.readyState < 2 || !crop) return;
-      g.drawImage(player, crop.sx, crop.sy, crop.size, crop.size, 0, 0, c.width, c.height);
-      const points = getSamplePoints(c.width, c.height);
-      points.forEach(({ x, y }, i) => {
-        const [r, gVal, b] = g.getImageData(x, y, 1, 1).data;
-        document.getElementById(`px${i}`).style.backgroundColor = `rgb(${r},${gVal},${b})`;
-      });
-    }
+    document.getElementById('captureBtn').addEventListener('click', doCapture);
 
-    document.getElementById("startBtn").addEventListener("click", startCamera);
+    // auto-capture hook — call this from your Dobot controller after it finishes moving
+    window.autoCaptureAfterDobot = () => setTimeout(doCapture, 1000);
   </script>
 </body>
 </html>
