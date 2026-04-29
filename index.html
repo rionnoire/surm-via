@@ -1,36 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Camera Single Pixel Capture</title>
+  <title>Camera Pixel Capture</title>
   <style>
     video, canvas { margin: 10px; border: 1px solid #ccc; }
+    #pixelGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 60px);
+      gap: 4px;
+      margin: 10px;
+    }
+    .pixelBox {
+      width: 60px;
+      height: 60px;
+      border: 1px solid #aaa;
+    }
   </style>
 </head>
 <body>
-  <h2>Camera Single Pixel Capture</h2>
+  <h2>Camera Pixel Capture</h2>
   <button id="startBtn">Start Camera</button><br>
   <video id="v1" width="320" height="240" autoplay muted playsinline></video>
   <canvas id="c1" width="240" height="240"></canvas>
-  <div>Pixel RGBA: <span id="s1"></span></div>
+  <div id="pixelGrid"></div>
   <script>
-    let player, c, g, s1;
+    let player, c, g;
+
+    // Build 16 boxes
+    const grid = document.getElementById("pixelGrid");
+    for (let i = 0; i < 16; i++) {
+      const div = document.createElement("div");
+      div.className = "pixelBox";
+      div.id = `px${i}`;
+      grid.appendChild(div);
+    }
+
+    function getSamplePoints(w, h) {
+      const points = [];
+      const stepX = w / 5;
+      const stepY = h / 5;
+      for (let row = 1; row <= 4; row++) {
+        for (let col = 1; col <= 4; col++) {
+          points.push({ x: Math.floor(stepX * col), y: Math.floor(stepY * row) });
+        }
+      }
+      return points;
+    }
+
     async function startCamera() {
       player = document.getElementById("v1");
       c = document.getElementById("c1");
       g = c.getContext("2d");
-      s1 = document.getElementById("s1");
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "environment" } });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 240, facingMode: "environment" }
+        });
         player.srcObject = stream;
         player.onloadedmetadata = () => {
           player.play();
           setInterval(capture, 500);
         };
       } catch(err) {
-        console.error("Camera error:", err);
         alert("Camera failed: " + err.name + " – " + err.message);
       }
     }
+
     function capture() {
       if (!player || player.readyState < 2) return;
       const vw = player.videoWidth;
@@ -39,20 +73,14 @@
       const sx = Math.floor((vw - size) / 2);
       const sy = Math.floor((vh - size) / 2);
       g.drawImage(player, sx, sy, size, size, 0, 0, c.width, c.height);
-      const x = Math.floor(c.width / 2);
-      const y = Math.floor(c.height / 2);
-      const pixel = g.getImageData(x, y, 1, 1).data;
-      const [r, gVal, b, a] = pixel;
-      s1.textContent = `R:${r} G:${gVal} B:${b} A:${a}`;
-      fetch('https://script.google.com/macros/s/AKfycbzXntUEiqsBhKi9-vri40xl8S8Ze9YIooaZf0kxxRD7FNUnsOKOhz6bUJOJOSHa5cK07Q/exec', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ r, g: gVal, b, a })
-      })
-      .then(res => res.json())
-      .then(data => console.log('Sheet updated', data))
-      .catch(err => console.error('Error sending RGB', err));
+
+      const points = getSamplePoints(c.width, c.height);
+      points.forEach(({ x, y }, i) => {
+        const [r, gVal, b] = g.getImageData(x, y, 1, 1).data;
+        document.getElementById(`px${i}`).style.backgroundColor = `rgb(${r},${gVal},${b})`;
+      });
     }
+
     document.getElementById("startBtn").addEventListener("click", startCamera);
   </script>
 </body>
