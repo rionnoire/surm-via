@@ -112,9 +112,6 @@
     }
 
     function checkWinner(b) {
-      const {red, green} = countPieces(b);
-      if (red===0)   return GREEN;
-      if (green===0) return RED;
       // win by reaching other side
       for (let c=0;c<4;c++) {
         if (b[3][c]===RED)   return RED;   // red reached bottom row
