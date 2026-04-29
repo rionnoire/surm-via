@@ -92,47 +92,65 @@
       return all;
     }
 
-    function cloneBoard(b) { return b.map(r=>[...r]); }
+    function cloneBoard(board) { return board.map(r=>[...r]); }
 
-    function applyMove(b, m) {
-      const nb = cloneBoard(b);
-      if (m.capR !== null) nb[m.capR][m.capC] = EMPTY;
-      nb[m.r][m.c] = nb[m.fromR][m.fromC];
-      nb[m.fromR][m.fromC] = EMPTY;
-      return nb;
-    }
+function applyMove(board, m) {
+  const nb = cloneBoard(board);
+  if (m.capR !== null) nb[m.capR][m.capC] = EMPTY;
+  nb[m.r][m.c] = nb[m.fromR][m.fromC];
+  nb[m.fromR][m.fromC] = EMPTY;
+  return nb;
+}
 
-    function countPieces(b) {
+function getMoves(board, r, c, t) {
+  const dr = t===RED ? 1 : -1;
+  const moves = [];
+  const nr = r + dr;
+  if (nr < 0 || nr > 3) return moves;
+  if (board[nr][c] === EMPTY)
+    moves.push({ r:nr, c:c, capR:null, capC:null });
+  for (const dc of [-1, 1]) {
+    const nc = c + dc;
+    if (nc >= 0 && nc <= 3 && isEnemy(board[nr][nc], t))
+      moves.push({ r:nr, c:nc, capR:nr, capC:nc });
+  }
+  return moves;
+}
+
+function getAllMoves(board, t) {
+  const all = [];
+  for (let r=0; r<4; r++)
+    for (let c=0; c<4; c++)
+      if (belongs(board[r][c], t))
+        getMoves(board,r,c,t).forEach(m => all.push({...m, fromR:r, fromC:c}));
+  return all;
+}
+
+function countPieces(board) {
   let red=0, green=0;
   for (let i=0;i<4;i++) for (let j=0;j<4;j++) {
-    if (b[i][j]===RED)   red++;
-    if (b[i][j]===GREEN) green++;
+    if (board[i][j]===RED)   red++;
+    if (board[i][j]===GREEN) green++;
   }
   return {red, green};
 }
 
-    console.log("board:", JSON.stringify(board));
-console.log("counts:", countPieces(board));
+function checkWinner(board) {
+  const {red, green} = countPieces(board);
+  if (red===0)   return GREEN;
+  if (green===0) return RED;
+  return null;
+}
 
-    function checkWinner(b) {
-      // win by reaching other side
-      for (let c=0;c<4;c++) {
-        if (b[3][c]===RED)   return RED;   // red reached bottom row
-        if (b[0][c]===GREEN) return GREEN; // green reached top row
-      }
-      return null;
-    }
+function chooseDobotMove(board) {
+  const moves = getAllMoves(board, GREEN);
+  if (moves.length===0) return null;
+  const caps = moves.filter(m => m.capR !== null);
+  const pool = caps.length > 0 ? caps : moves;
+  pool.sort((a,b) => a.r - b.r);
+  return pool[0];
+}
 
-    // Simple dobot AI: prefer captures, else advance most
-    function chooseDobotMove(b) {
-      const moves = getAllMoves(b, GREEN);
-      if (moves.length===0) return null;
-      const caps = moves.filter(m => m.capR !== null);
-      const pool = caps.length > 0 ? caps : moves;
-      // prefer move that goes furthest up (lowest row number)
-      pool.sort((a,b) => a.r - b.r);
-      return pool[0];
-    }
 
     // ── Color inference ──────────────────────────────────────────────
     function inferPiece(r, g, b) {
