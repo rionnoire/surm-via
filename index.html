@@ -41,10 +41,10 @@
       if (!player || player.readyState < 2) return;
 
       const vw = player.videoWidth;
-  const vh = player.videoHeight;
-  const size = Math.min(vw, vh); // largest square that fits
-  const sx = Math.floor((vw - size) / 2); // source x offset
-  const sy = Math.floor((vh - size) / 2); // source y offset
+      const vh = player.videoHeight;
+      const size = Math.min(vw, vh); // largest square that fits
+      const sx = Math.floor((vw - size) / 2); // source x offset
+      const sy = Math.floor((vh - size) / 2); // source y offset
 
       g.drawImage(player, 0, 0, c.width, c.height);
 
