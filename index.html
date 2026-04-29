@@ -111,6 +111,9 @@
   return {red, green};
 }
 
+    console.log("board:", JSON.stringify(board));
+console.log("counts:", countPieces(board));
+
     function checkWinner(b) {
       // win by reaching other side
       for (let c=0;c<4;c++) {
