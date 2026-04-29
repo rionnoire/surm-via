@@ -46,7 +46,7 @@
       const sx = Math.floor((vw - size) / 2); // source x offset
       const sy = Math.floor((vh - size) / 2); // source y offset
 
-      g.drawImage(player, 0, 0, c.width, c.height);
+      g.drawImage(player, sx, sy, size, size, 0, 0, c.width, c.height);
 
       // Pick one pixel at the center
       const x = Math.floor(c.width / 2);
