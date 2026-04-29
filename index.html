@@ -8,55 +8,42 @@
 </head>
 <body>
   <h2>Camera Single Pixel Capture</h2>
-
   <button id="startBtn">Start Camera</button><br>
   <video id="v1" width="320" height="240" autoplay muted playsinline></video>
   <canvas id="c1" width="240" height="240"></canvas>
   <div>Pixel RGBA: <span id="s1"></span></div>
-
   <script>
     let player, c, g, s1;
-
     async function startCamera() {
       player = document.getElementById("v1");
       c = document.getElementById("c1");
       g = c.getContext("2d");
       s1 = document.getElementById("s1");
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "environment" } });
         player.srcObject = stream;
-
         player.onloadedmetadata = () => {
           player.play();
-          setInterval(capture, 500); // capture every 0.5s
+          setInterval(capture, 500);
         };
       } catch(err) {
         console.error("Camera error:", err);
         alert("Camera failed: " + err.name + " – " + err.message);
       }
     }
-
     function capture() {
       if (!player || player.readyState < 2) return;
-
       const vw = player.videoWidth;
       const vh = player.videoHeight;
-      const size = Math.min(vw, vh); // largest square that fits
-      const sx = Math.floor((vw - size) / 2); // source x offset
-      const sy = Math.floor((vh - size) / 2); // source y offset
-
+      const size = Math.min(vw, vh);
+      const sx = Math.floor((vw - size) / 2);
+      const sy = Math.floor((vh - size) / 2);
       g.drawImage(player, sx, sy, size, size, 0, 0, c.width, c.height);
-
-      // Pick one pixel at the center
       const x = Math.floor(c.width / 2);
       const y = Math.floor(c.height / 2);
       const pixel = g.getImageData(x, y, 1, 1).data;
-      const [r,gVal,b,a] = pixel;
-
+      const [r, gVal, b, a] = pixel;
       s1.textContent = `R:${r} G:${gVal} B:${b} A:${a}`;
-
-      // Send pixel to Google Sheet
       fetch('https://script.google.com/macros/s/AKfycbzXntUEiqsBhKi9-vri40xl8S8Ze9YIooaZf0kxxRD7FNUnsOKOhz6bUJOJOSHa5cK07Q/exec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -66,7 +53,6 @@
       .then(data => console.log('Sheet updated', data))
       .catch(err => console.error('Error sending RGB', err));
     }
-
     document.getElementById("startBtn").addEventListener("click", startCamera);
   </script>
 </body>
