@@ -160,4 +160,12 @@
       g.drawImage(player, crop.sx, crop.sy, crop.size, crop.size, 0, 0, c.width, c.height);
       const points = getSamplePoints(c.width, c.height);
       points.forEach(({ x, y }, i) => {
-        const [r, g
+        const [r, gVal, b] = g.getImageData(x, y, 1, 1).data;
+        document.getElementById(`px${i}`).style.backgroundColor = `rgb(${r},${gVal},${b})`;
+      });
+    }
+
+    document.getElementById("startBtn").addEventListener("click", startCamera);
+  </script>
+</body>
+</html>
