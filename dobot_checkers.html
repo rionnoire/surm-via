@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dobot Checkers</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --panel: #141720;
+      --border: #1e2535;
+      --accent: #00e5a0;
+      --accent2: #ff4466;
+      --text: #c8d0e0;
+      --dim: #4a5568;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Exo 2', sans-serif;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(0,229,160,0.05) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(255,68,102,0.05) 0%, transparent 50%);
+    }
+
+    h2 {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    #container {
+      position: relative;
+      display: inline-block;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    video { display: block; }
+    #overlay { position: absolute; top: 0; left: 0; cursor: crosshair; }
+    #c1 { display: none; }
+
+    .controls { margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      padding: 8px 18px;
+      background: var(--panel);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    button:hover:not(:disabled) {
+      background: var(--accent);
+      color: var(--bg);
+      box-shadow: 0 0 12px rgba(0,229,160,0.4);
+    }
+    button:disabled { opacity: 0.35; cursor: default; border-color: var(--dim); color: var(--dim); }
+
+    #status {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--dim);
+      margin: 6px 0;
+      min-height: 1.2em;
+    }
+
+    #bestMove {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 8px 0 12px;
+      min-height: 1.4em;
+      letter-spacing: 0.05em;
+    }
+    #bestMove.capture { color: #ffcc00; }
+    #bestMove.none    { color: var(--accent2); }
+
+    /* Board grid */
+    #boardDisplay {
+      display: grid;
+      grid-template-columns: 30px repeat(4, 52px);
+      grid-template-rows: 30px repeat(4, 52px);
+      gap: 3px;
+      margin: 4px 0 16px;
+    }
+    .col-label, .row-label {
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+    .cell {
+      width: 52px; height: 52px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      transition: box-shadow 0.2s, border-color 0.2s;
+      position: relative;
+    }
+    .cell.from { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,229,160,0.35); }
+    .cell.to   { border-color: #ffcc00;       box-shadow: 0 0 10px rgba(255,204,0,0.35); }
+
+    /* Direction arrow overlay */
+    .arrow {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 16px;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    #legend {
+      display: flex; gap: 16px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--dim);
+      margin-bottom: 8px;
+    }
+    #legend span { display: flex; align-items: center; gap: 5px; }
+  </style>
+</head>
+<body>
+  <h2>Dobot Checkers</h2>
+
+  <div id="container">
+    <video id="v1" width="320" height="240" autoplay muted playsinline></video>
+    <canvas id="overlay" width="320" height="240"></canvas>
+  </div>
+  <canvas id="c1" width="240" height="240"></canvas>
+
+  <div class="controls">
+    <button id="startBtn">Start Camera</button>
+    <button id="captureBtn" disabled>Capture Board</button>
+  </div>
+
+  <div id="status">Camera not started.</div>
+  <div id="bestMove"></div>
+
+  <div id="legend">
+    <span>🔴 Opponent (moves ↓)</span>
+    <span>🟢 Robot (moves ↑, bounces)</span>
+  </div>
+
+  <div id="boardDisplay"></div>
+
+  <script>
+  // ─────────────────────────────────────────────────────────────────
+  //  CONSTANTS
+  // ─────────────────────────────────────────────────────────────────
+  const EMPTY = 0, RED = 1, GREEN = 2;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  BOARD HELPERS
+  // ─────────────────────────────────────────────────────────────────
+  function cloneBoard(b) { return b.map(r => [...r]); }
+
+  function countPieces(b) {
+    let red = 0, green = 0;
+    for (let r = 0; r < 4; r++)
+      for (let c = 0; c < 4; c++) {
+        if (b[r][c] === RED)   red++;
+        if (b[r][c] === GREEN) green++;
+      }
+    return { red, green };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  MOVE GENERATION  (with bounce)
+  //
+  //  Piece direction is tracked per-piece using a separate direction
+  //  board (1 = moving down, -1 = moving up).  RED always starts
+  //  moving DOWN (+1), GREEN always starts moving UP (-1).
+  //
+  //  When a piece would step off its leading edge it BOUNCES: its
+  //  direction flips and it stays on the same row (i.e. the bounce
+  //  happens in-place this turn — one-step-at-a-time movement).
+  // ─────────────────────────────────────────────────────────────────
+
+  // Initial direction for each team
+  function defaultDir(t) { return t === RED ? 1 : -1; }
+
+  // Build a fresh direction board matching a piece board.
+  // All RED pieces go down, all GREEN pieces go up initially.
+  function buildDirBoard(b) {
+    return b.map(row => row.map(p => p === EMPTY ? 0 : defaultDir(p)));
+  }
+
+  /**
+   * getMoves(board, dirBoard, r, c, t)
+   *
+   * Returns array of move objects:
+   *   { fromR, fromC, r, c, capR, capC, newDir, bounce }
+   *
+   * Movement rules:
+   *   • Straight-forward step (no diagonal for pawns): land on empty square.
+   *   • Capture: land diagonally forward onto an enemy square (removes it).
+   *   • Bounce: if the next row is out of bounds, flip direction and stay
+   *             (no capture possible on a bounce turn).
+   */
+  function getMoves(board, dirBoard, r, c, t) {
+    const dir   = dirBoard[r][c];
+    const moves = [];
+    const nr    = r + dir;
+
+    // ── Bounce ──────────────────────────────────────────────────────
+    if (nr < 0 || nr > 3) {
+      // Piece is at the edge; it bounces in place and flips direction.
+      moves.push({ fromR:r, fromC:c, r:r, c:c, capR:null, capC:null, newDir:-dir, bounce:true });
+      return moves;
+    }
+
+    // ── Straight forward (no capture) ───────────────────────────────
+    if (board[nr][c] === EMPTY)
+      moves.push({ fromR:r, fromC:c, r:nr, c:c, capR:null, capC:null, newDir:dir, bounce:false });
+
+    // ── Diagonal captures ───────────────────────────────────────────
+    for (const dc of [-1, 1]) {
+      const nc = c + dc;
+      if (nc >= 0 && nc <= 3) {
+        const target = board[nr][nc];
+        const isEnemy = (t === RED) ? (target === GREEN) : (target === RED);
+        if (isEnemy)
+          moves.push({ fromR:r, fromC:c, r:nr, c:nc, capR:nr, capC:nc, newDir:dir, bounce:false });
+      }
+    }
+
+    return moves;
+  }
+
+  function getAllMoves(board, dirBoard, t) {
+    const all = [];
+    for (let r = 0; r < 4; r++)
+      for (let c = 0; c < 4; c++)
+        if (board[r][c] === t)
+          getMoves(board, dirBoard, r, c, t).forEach(m => all.push(m));
+    return all;
+  }
+
+  function applyMove(board, dirBoard, m) {
+    const nb  = cloneBoard(board);
+    const ndb = cloneBoard(dirBoard);
+
+    if (m.bounce) {
+      // Piece stays, direction flips
+      ndb[m.r][m.c] = m.newDir;
+      return { board: nb, dirBoard: ndb };
+    }
+
+    if (m.capR !== null) {
+      nb[m.capR][m.capC]   = EMPTY;
+      ndb[m.capR][m.capC]  = 0;
+    }
+
+    nb[m.r][m.c]    = nb[m.fromR][m.fromC];
+    ndb[m.r][m.c]   = m.newDir;
+    nb[m.fromR][m.fromC]  = EMPTY;
+    ndb[m.fromR][m.fromC] = 0;
+
+    return { board: nb, dirBoard: ndb };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  EVALUATION & MINIMAX
+  // ─────────────────────────────────────────────────────────────────
+
+  function evaluate(board, dirBoard) {
+    const { red, green } = countPieces(board);
+    if (red   === 0) return  1000;   // GREEN wins
+    if (green === 0) return -1000;   // RED wins
+
+    // Material advantage (GREEN is maximiser)
+    let score = (green - red) * 10;
+
+    // Positional bonus: GREEN pieces advanced toward row 0 (enemy side)
+    // and RED pieces advanced toward row 3 (enemy side)
+    for (let r = 0; r < 4; r++)
+      for (let c = 0; c < 4; c++) {
+        if (board[r][c] === GREEN) score += (3 - r);   // further up = higher row index closer to 0
+        if (board[r][c] === RED)   score -= r;         // further down = lower index closer to 3
+      }
+
+    return score;
+  }
+
+  const MINIMAX_DEPTH = 5;   // deeper = stronger, ~fast enough for 4×4
+
+  function minimax(board, dirBoard, depth, alpha, beta, isMax) {
+    const { red, green } = countPieces(board);
+    if (red === 0)   return  1000 + depth;
+    if (green === 0) return -1000 - depth;
+    if (depth === 0) return evaluate(board, dirBoard);
+
+    const t     = isMax ? GREEN : RED;
+    const moves = getAllMoves(board, dirBoard, t);
+
+    if (moves.length === 0) return isMax ? -900 : 900;
+
+    if (isMax) {
+      let best = -Infinity;
+      for (const m of moves) {
+        const { board: nb, dirBoard: ndb } = applyMove(board, dirBoard, m);
+        const val = minimax(nb, ndb, depth - 1, alpha, beta, false);
+        if (val > best) best = val;
+        alpha = Math.max(alpha, val);
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const m of moves) {
+        const { board: nb, dirBoard: ndb } = applyMove(board, dirBoard, m);
+        const val = minimax(nb, ndb, depth - 1, alpha, beta, true);
+        if (val < best) best = val;
+        beta = Math.min(beta, val);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+  }
+
+  function chooseDobotMove(board, dirBoard) {
+    const moves = getAllMoves(board, dirBoard, GREEN);
+    if (moves.length === 0) return null;
+
+    let bestVal = -Infinity, bestMove = null;
+    for (const m of moves) {
+      const { board: nb, dirBoard: ndb } = applyMove(board, dirBoard, m);
+      const val = minimax(nb, ndb, MINIMAX_DEPTH - 1, -Infinity, Infinity, false);
+      if (val > bestVal) { bestVal = val; bestMove = m; }
+    }
+    return bestMove;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  COLOR INFERENCE
+  // ─────────────────────────────────────────────────────────────────
+  function inferPiece(r, g, b) {
+    const max = Math.max(r, g, b);
+    if (max < 50) return EMPTY;
+    // Saturation check: the dominant channel must clearly lead
+    if (r > g * 1.6 && r > b * 1.6) return RED;
+    if (g > r * 1.6 && g > b * 1.6) return GREEN;
+    return EMPTY;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  UI HELPERS
+  // ─────────────────────────────────────────────────────────────────
+  const COL = ['A','B','C','D'];
+  const ROW = ['1','2','3','4'];
+
+  function moveToText(m) {
+    if (!m)        return "No moves available.";
+    if (m.bounce)  return `BOUNCE at ${COL[m.fromC]}${ROW[m.fromR]} (direction reverses)`;
+    const from = COL[m.fromC] + ROW[m.fromR];
+    const to   = COL[m.c]     + ROW[m.r];
+    return m.capR !== null
+      ? `Move ${from} → ${to}  ⚡ CAPTURE`
+      : `Move ${from} → ${to}`;
+  }
+
+  function renderBoard(board, best) {
+    const div = document.getElementById("boardDisplay");
+    div.innerHTML = '';
+
+    // Corner cell
+    div.appendChild(Object.assign(document.createElement('div'), { className:'col-label' }));
+    // Column headers
+    for (const l of COL) {
+      const el = document.createElement('div');
+      el.className = 'col-label'; el.textContent = l;
+      div.appendChild(el);
+    }
+
+    for (let r = 0; r < 4; r++) {
+      // Row label
+      const rl = document.createElement('div');
+      rl.className = 'row-label'; rl.textContent = ROW[r];
+      div.appendChild(rl);
+
+      for (let c = 0; c < 4; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        if (best) {
+          if (r === best.fromR && c === best.fromC) cell.classList.add('from');
+          if (r === best.r     && c === best.c)     cell.classList.add('to');
+        }
+
+        const p = board[r][c];
+        if (p === RED)   cell.textContent = '🔴';
+        if (p === GREEN) cell.textContent = '🟢';
+        div.appendChild(cell);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  CAMERA & CAPTURE
+  // ─────────────────────────────────────────────────────────────────
+  let player, cnv, ctx, ovCanvas, ovCtx;
+  let crop     = null;
+  let dragging = false, dragStart = null, dragEnd = null;
+
+  function getSamplePoints(w, h) {
+    const pts = [];
+    const stepX = w / 5, stepY = h / 5;
+    for (let row = 1; row <= 4; row++)
+      for (let col = 1; col <= 4; col++)
+        pts.push({ x: Math.floor(stepX * col), y: Math.floor(stepY * row) });
+    return pts;
+  }
+
+  function toVideoCoords(cx, cy) {
+    return {
+      x: Math.floor(cx * player.videoWidth  / ovCanvas.width),
+      y: Math.floor(cy * player.videoHeight / ovCanvas.height)
+    };
+  }
+
+  function drawBox(x1, y1, x2, y2) {
+    ovCtx.clearRect(0, 0, ovCanvas.width, ovCanvas.height);
+    const x    = Math.min(x1, x2), y = Math.min(y1, y2);
+    const side = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    ovCtx.strokeStyle = '#00e5a0';
+    ovCtx.lineWidth   = 2;
+    ovCtx.setLineDash([5, 3]);
+    ovCtx.strokeRect(x, y, side, side);
+  }
+
+  function capture() {
+    if (!player || player.readyState < 2 || !crop) {
+      document.getElementById("status").textContent = "Camera not ready or no crop selected.";
+      return;
+    }
+
+    ctx.drawImage(player, crop.sx, crop.sy, crop.size, crop.size, 0, 0, cnv.width, cnv.height);
+
+    const pts   = getSamplePoints(cnv.width, cnv.height);
+    const board = Array(4).fill(null).map(() => Array(4).fill(EMPTY));
+
+    pts.forEach(({ x, y }, i) => {
+      const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+      console.log(`sq${i} (row${Math.floor(i/4)} col${i%4}): R${r} G${g} B${b}`);
+      board[Math.floor(i / 4)][i % 4] = inferPiece(r, g, b);
+    });
+
+    // Build direction board from detected positions
+    const dirBoard = buildDirBoard(board);
+
+    const { red, green } = countPieces(board);
+    if (red === 0) {
+      document.getElementById("status").textContent = "🟢 Robot wins!";
+      document.getElementById("bestMove").textContent = '';
+      document.getElementById("bestMove").className = '';
+      renderBoard(board, null);
+      return;
+    }
+    if (green === 0) {
+      document.getElementById("status").textContent = "🔴 Opponent wins!";
+      document.getElementById("bestMove").textContent = '';
+      document.getElementById("bestMove").className = '';
+      renderBoard(board, null);
+      return;
+    }
+
+    document.getElementById("status").textContent =
+      `Detected — 🔴 ${red} red  🟢 ${green} green`;
+
+    const best    = chooseDobotMove(board, dirBoard);
+    const bmEl    = document.getElementById("bestMove");
+    bmEl.textContent = moveToText(best);
+    bmEl.className   = best
+      ? (best.capR !== null ? 'capture' : '')
+      : 'none';
+
+    renderBoard(board, best);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  INIT
+  // ─────────────────────────────────────────────────────────────────
+  document.getElementById("startBtn").addEventListener("click", async () => {
+    player   = document.getElementById("v1");
+    cnv      = document.getElementById("c1");
+    ctx      = cnv.getContext("2d");
+    ovCanvas = document.getElementById("overlay");
+    ovCtx    = ovCanvas.getContext("2d");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      player.srcObject = stream;
+      await player.play();
+
+      const vw = player.videoWidth, vh = player.videoHeight;
+      const size = Math.min(vw, vh);
+      crop = { sx: Math.floor((vw - size) / 2), sy: Math.floor((vh - size) / 2), size };
+
+      document.getElementById("captureBtn").disabled = false;
+      document.getElementById("status").textContent  = "Ready — draw crop or capture directly.";
+    } catch (err) {
+      alert("Camera failed: " + err.name + " – " + err.message);
+    }
+
+    // Mouse
+    ovCanvas.addEventListener("mousedown", e => {
+      dragging  = true;
+      dragStart = { x: e.offsetX, y: e.offsetY };
+      dragEnd   = null;
+    });
+    ovCanvas.addEventListener("mousemove", e => {
+      if (!dragging) return;
+      dragEnd = { x: e.offsetX, y: e.offsetY };
+      drawBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
+    });
+    ovCanvas.addEventListener("mouseup", e => {
+      if (!dragging) return;
+      dragging = false;
+      dragEnd  = { x: e.offsetX, y: e.offsetY };
+      const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
+      const tl   = toVideoCoords(Math.min(dragStart.x, dragEnd.x), Math.min(dragStart.y, dragEnd.y));
+      const tr   = toVideoCoords(Math.min(dragStart.x, dragEnd.x) + side, 0);
+      crop = { sx: tl.x, sy: tl.y, size: tr.x - tl.x };
+    });
+
+    // Touch
+    ovCanvas.addEventListener("touchstart", e => {
+      e.preventDefault();
+      const rect = ovCanvas.getBoundingClientRect(), t = e.touches[0];
+      dragging  = true;
+      dragStart = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      dragEnd   = null;
+    }, { passive: false });
+    ovCanvas.addEventListener("touchmove", e => {
+      e.preventDefault();
+      if (!dragging) return;
+      const rect = ovCanvas.getBoundingClientRect(), t = e.touches[0];
+      dragEnd = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      drawBox(dragStart.x, dragStart.y, dragEnd.x, dragEnd.y);
+    }, { passive: false });
+    ovCanvas.addEventListener("touchend", e => {
+      e.preventDefault();
+      if (!dragging || !dragEnd) return;
+      dragging = false;
+      const side = Math.max(Math.abs(dragEnd.x - dragStart.x), Math.abs(dragEnd.y - dragStart.y));
+      const tl   = toVideoCoords(Math.min(dragStart.x, dragEnd.x), Math.min(dragStart.y, dragEnd.y));
+      const tr   = toVideoCoords(Math.min(dragStart.x, dragEnd.x) + side, 0);
+      crop = { sx: tl.x, sy: tl.y, size: tr.x - tl.x };
+    }, { passive: false });
+  });
+
+  document.getElementById("captureBtn").addEventListener("click", capture);
+  </script>
+</body>
+</html>
