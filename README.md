@@ -1,4 +1,5 @@
 # surm-via
-ära
 
-hi yes this is readme
+csv-sse kirjutamiseks on tokenit vaja, lugemiseks afaik mitte
+
+all on debug optionid (manuaalne board layout, pixel color detection)
