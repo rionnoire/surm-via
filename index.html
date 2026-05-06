@@ -120,6 +120,44 @@
   </details>
 
   <script>
+
+// ── Config ───────────────────────────────────────────────────────
+const GITHUB_TOKEN = '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';        // Personal Access Token (repo scope)
+const GITHUB_USER  = 'rionnoire';
+const GITHUB_REPO  = 'surm-via';
+const FILE_PATH    = 'move.csv';
+
+// ── Push move to move.csv via GitHub API ─────────────────────────
+async function pushMove(m) {
+  if (!m) return;
+
+  const from      = COL[m.fromC] + ROW[m.fromR];
+  const to        = m.bounce ? '(bounce)' : COL[m.c] + ROW[m.r];
+  const capture   = m.capR !== null ? 'yes' : 'no';
+  const timestamp = new Date().toISOString();
+  const csv       = `from,to,capture,timestamp\n${from},${to},${capture},${timestamp}`;
+
+  // Need current file SHA to overwrite it
+  const infoRes = await fetch(
+    `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
+    { headers: { Authorization: `token ${GITHUB_TOKEN}` } }
+  );
+  const info = await infoRes.json();
+
+  await fetch(
+    `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
+    {
+      method: 'PUT',
+      headers: { Authorization: `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'update move',
+        content: btoa(csv),
+        sha: info.sha          // omit this line if the file doesn't exist yet
+      })
+    }
+  );
+}
+    
   // ── Constants ────────────────────────────────────────────────────
   const EMPTY = 0, RED = 1, GREEN = 2;
   const COL = ['A','B','C','D'];
