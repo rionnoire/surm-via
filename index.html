@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dobot Checkers</title>
+  <title>ai mashup game</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cascadia+Code:ital,wght@0,200..700;1,200..700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -87,7 +87,7 @@
   </style>
 </head>
 <body>
-  <h2>Dobot Checkers</h2>
+  <h2>kabe!! male!!</h2>
 
   <div id="container">
     <video id="v1" width="320" height="240" autoplay muted playsinline></video>
@@ -155,7 +155,7 @@ async function pushMove(m) {
 
   const from      = COL[m.fromC] + ROW[m.fromR];
   const to = m.bounce
-    ? COL[m.fromC] + ROW[m.fromR + m.newDir]
+    ? COL[m.fromC] + ROW[m.fromR]
     : COL[m.c] + ROW[m.r];
   const capture   = m.capR !== null ? 'yes' : 'no';
   const timestamp = new Date().toISOString();
