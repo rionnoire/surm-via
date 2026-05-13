@@ -115,8 +115,8 @@
   <div id="debugOut"></div>
 
   <div id="legend">
-    <span>🔴 - vastane</span>
-    <span>🟢 - robot</span>
+    <span>🎶 - vastane</span>
+    <span>🤖 - robot</span>
   </div>
   <div id="boardDisplay"></div>
 
@@ -331,7 +331,7 @@ async function pushMove(m) {
     if (m.bounce) return `BOUNCE: ${COL[m.fromC]}${ROW[m.fromR]} reverses direction`;
     const from = COL[m.fromC] + ROW[m.fromR];
     const to   = COL[m.c]     + ROW[m.r];
-    return m.capR !== null ? `${from} → ${to}  ⚡ CAPTURE` : `${from} → ${to}`;
+    return m.capR !== null ? `${from} → ${to}  !!!` : `${from} → ${to}`;
   }
 
   // ── Render board ─────────────────────────────────────────────────
@@ -356,7 +356,7 @@ async function pushMove(m) {
           if (r === best.r     && c === best.c)     cell.classList.add('to');
         }
         const p = board[r][c];
-        cell.textContent = p === RED ? '🔴' : p === GREEN ? '🟢' : '';
+        cell.textContent = p === RED ? '🎶' : p === GREEN ? '🤖' : '';
         div.appendChild(cell);
       }
     }
@@ -370,11 +370,11 @@ async function pushMove(m) {
     const dbgEl          = document.getElementById("debugOut");
 
     if (red === 0) {
-      bmEl.textContent = "🟢 Robot wins!"; bmEl.className = '';
+      bmEl.textContent = "ai supremacy"; bmEl.className = '';
       renderBoard("boardDisplay", board, null); return;
     }
     if (green === 0) {
-      bmEl.textContent = "🔴 Opponent wins!"; bmEl.className = '';
+      bmEl.textContent = "stupid bot hihi"; bmEl.className = '';
       renderBoard("boardDisplay", board, null); return;
     }
 
@@ -452,7 +452,7 @@ async function pushMove(m) {
 
   document.getElementById("captureBtn").addEventListener("click", () => {
     if (!player || player.readyState < 2 || !crop) {
-      document.getElementById("status").textContent = "Camera not ready or no crop selected.";
+      document.getElementById("status").textContent = "parem kaamera pls";
       return;
     }
     ctx.drawImage(player, crop.sx, crop.sy, crop.size, crop.size, 0, 0, cnv.width, cnv.height);
@@ -471,7 +471,7 @@ async function pushMove(m) {
 
     showDebugColors(dbg);
     const { red, green } = countPieces(board);
-    document.getElementById("status").textContent = `Detected — 🔴 ${red}  🟢 ${green}`;
+    document.getElementById("status").textContent = `hei! — 🎶 ${red}  🤖 ${green}`;
     solve(board);
   });
 
@@ -491,7 +491,7 @@ async function pushMove(m) {
       const size = Math.min(vw, vh);
       crop = { sx: Math.floor((vw-size)/2), sy: Math.floor((vh-size)/2), size };
       document.getElementById("captureBtn").disabled = false;
-      document.getElementById("status").textContent  = "Ready — draw crop area or capture directly.";
+      document.getElementById("status").textContent  = "hakka croppima crop boy";
     } catch (err) {
       alert("Camera failed: " + err.name + " – " + err.message);
     }
