@@ -333,8 +333,8 @@ async function pushMove(m) {
 
   // ── Move to text ─────────────────────────────────────────────────
   function moveToText(m) {
-    if (!m)       return "No moves available.";
-    if (m.bounce) return `BOUNCE: ${COL[m.fromC]}${ROW[m.fromR]} reverses direction`;
+    if (!m)       return "L (ei ole head käiku guys)";
+    if (m.bounce) return `hophop: ${COL[m.fromC]}${ROW[m.fromR]} suunavahetus sest see on um uh huvitav laud`;
     const from = COL[m.fromC] + ROW[m.fromR];
     const to   = COL[m.c]     + ROW[m.r];
     return m.capR !== null ? `${from} → ${to}  !!!` : `${from} → ${to}`;
