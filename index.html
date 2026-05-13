@@ -3,12 +3,12 @@
 <head>
   <title>Dobot Checkers</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cascadia+Code:ital,wght@0,200..700;1,200..700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0d0f14; --panel: #141720; --border: #1e2535;
-      --accent: #00e5a0; --accent2: #ff4466; --text: #c8d0e0; --dim: #4a5568;
-      --mono: 'Share Tech Mono', monospace; --sans: 'Exo 2', sans-serif;
+      --bg: #CDB4DB; --panel: #FFC8DD; --border: #FFAFCC;
+      --accent: #BDE0FE; --accent2: #A2D2FF; --text: #BDE0FE; --dim: #A2D2FF;
+      --mono: 'Cascadia Code', monospace; --sans: 'Exo 2', sans-serif;
     }
     body {
       font-family: var(--sans); background: var(--bg); color: var(--text);
@@ -96,12 +96,12 @@
   <canvas id="c1" width="240" height="240"></canvas>
 
   <div class="controls">
-    <button id="startBtn">Start Camera</button>
-    <button id="captureBtn" disabled>Capture Board</button>
+    <button id="startBtn">kaamera!</button>
+    <button id="captureBtn" disabled>capture</button>
   </div>
 
   <div style="margin:10px 0;display:flex;align-items:center;gap:8px;">
-    <label style="font-family:var(--mono);font-size:0.75rem;color:var(--dim);white-space:nowrap;">GitHub token</label>
+    <label style="font-family:var(--mono);font-size:0.75rem;color:var(--dim);white-space:nowrap;">token</label>
     <input id="tokenInput" type="password" placeholder="github_pat_…"
       style="flex:1;max-width:320px;background:var(--panel);border:1px solid var(--border);border-radius:4px;
              padding:6px 10px;font-family:var(--mono);font-size:0.75rem;color:var(--text);outline:none;"
@@ -109,19 +109,19 @@
     />
   </div>
 
-  <div id="status">Camera not started.</div>
+  <div id="status">kaamera?</div>
   <div id="pushStatus"></div>
   <div id="bestMove"></div>
   <div id="debugOut"></div>
 
   <div id="legend">
-    <span>🔴 Opponent (moves ↓)</span>
-    <span>🟢 Robot (moves ↑, bounces)</span>
+    <span>🔴 - vastane</span>
+    <span>🟢 - robot</span>
   </div>
   <div id="boardDisplay"></div>
 
   <details>
-    <summary>▸ Manual board editor (test without camera)</summary>
+    <summary>manuaalne lauamanipulatsioon</summary>
     <p style="font-family:var(--mono);font-size:0.72rem;color:var(--dim);margin:8px 0 4px;">Click cells to cycle: empty → 🔴 → 🟢 → empty</p>
     <div id="manualBoard"></div>
     <button id="solveManual">Solve Manual Board</button>
@@ -129,10 +129,10 @@
   </details>
 
   <details style="margin-top:10px;">
-    <summary>▸ Debug: sampled colors from last capture</summary>
+    <summary>kontrolli värve</summary>
     <div id="debugColors"></div>
     <p style="font-family:var(--mono);font-size:0.7rem;color:var(--dim);margin-top:4px;">
-      Border color = detected type. Adjust inferPiece() threshold if wrong.
+      ääred on valitud kategooria (laud, vastane, robot)
     </p>
   </details>
 
@@ -150,7 +150,7 @@ async function pushMove(m) {
 
   const pushEl = document.getElementById('pushStatus');
   pushEl.className = 'pushing';
-  pushEl.textContent = '⟳ Writing to GitHub…';
+  pushEl.textContent = 'kirjutab';
 
   const from      = COL[m.fromC] + ROW[m.fromR];
   const to        = m.bounce ? '(bounce)' : COL[m.c] + ROW[m.r];
@@ -184,15 +184,15 @@ async function pushMove(m) {
 
     if (putRes.ok) {
       pushEl.className = 'ok';
-      pushEl.textContent = `✓ Written → ${from} → ${to}  (${timestamp.slice(11,19)} UTC)`;
+      pushEl.textContent = `liigutus → ${from} → ${to}  (${timestamp.slice(11,19)} UTC)`;
     } else {
       const err = await putRes.json();
       pushEl.className = 'err';
-      pushEl.textContent = `✗ GitHub error: ${err.message}`;
+      pushEl.textContent = `git error ${err.message}`;
     }
   } catch (e) {
     pushEl.className = 'err';
-    pushEl.textContent = `✗ Network error: ${e.message}`;
+    pushEl.textContent = `net error ${e.message}`;
   }
 }
 
