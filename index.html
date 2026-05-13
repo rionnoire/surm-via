@@ -154,7 +154,9 @@ async function pushMove(m) {
   pushEl.textContent = 'kirjutab';
 
   const from      = COL[m.fromC] + ROW[m.fromR];
-  const to        = m.bounce ? '(bounce)' : COL[m.c] + ROW[m.r];
+  const to = m.bounce
+    ? COL[m.fromC] + ROW[m.fromR + m.newDir]
+    : COL[m.c] + ROW[m.r];
   const capture   = m.capR !== null ? 'yes' : 'no';
   const timestamp = new Date().toISOString();
   const csv       = `from,to,capture,timestamp\n${from},${to},${capture},${timestamp}`;
