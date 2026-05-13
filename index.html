@@ -155,7 +155,7 @@ async function pushMove(m) {
 
   const from      = COL[m.fromC] + ROW[m.fromR];
   const to = m.bounce
-    ? COL[m.fromC] + ROW[m.fromR]
+    ? COL[m.fromC] + ROW[m.fromR + m.newDir]
     : COL[m.c] + ROW[m.r];
   const capture   = m.capR !== null ? 'yes' : 'no';
   const timestamp = new Date().toISOString();
