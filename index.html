@@ -553,7 +553,7 @@ async function pushMove(m) {
         cell.style.opacity = '0.4';
         cell.addEventListener('click', () => {
           manualState[r][c] = (manualState[r][c] + 1) % 3;
-          cell.textContent  = manualState[r][c] === RED ? '🔴' : manualState[r][c] === GREEN ? '🟢' : '';
+          cell.textContent  = manualState[r][c] === RED ? '🎶' : manualState[r][c] === GREEN ? '🤖' : '';
           cell.style.opacity = manualState[r][c] === EMPTY ? '0.4' : '1';
         });
         grid.appendChild(cell);
@@ -564,7 +564,7 @@ async function pushMove(m) {
   document.getElementById("solveManual").addEventListener("click", () => {
     const board = manualState.map(row => [...row]);
     const { red, green } = countPieces(board);
-    document.getElementById("status").textContent = `Manual — 🔴 ${red}  🟢 ${green}`;
+    document.getElementById("status").textContent = `manuaal 🎶 ${red}  🤖 ${green}`;
     solve(board);  // pushMove is called inside solve()
     document.getElementById("manualResult").textContent = document.getElementById("bestMove").textContent;
   });
