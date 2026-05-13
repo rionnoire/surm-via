@@ -145,9 +145,10 @@ const GITHUB_REPO  = 'surm-via';
 const FILE_PATH    = 'move.csv';
 
 // ── Push move to move.csv via GitHub API ─────────────────────────
+let cachedSha = null;  // add this at the top with your other globals
+
 async function pushMove(m) {
   if (!m) return;
-
   const pushEl = document.getElementById('pushStatus');
   pushEl.className = 'pushing';
   pushEl.textContent = 'kirjutab';
@@ -159,19 +160,18 @@ async function pushMove(m) {
   const csv       = `from,to,capture,timestamp\n${from},${to},${capture},${timestamp}`;
 
   try {
-    // Get current file SHA (needed to overwrite)
-    const infoRes = await fetch(
-      `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
-      { headers: { Authorization: `Bearer ${GITHUB_TOKEN()}`, 'X-GitHub-Api-Version': '2022-11-28' } }
-    );
-    const info = await infoRes.json();
+    // Only fetch SHA if we don't have it cached
+    if (!cachedSha) {
+      const infoRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
+        { headers: { Authorization: `Bearer ${GITHUB_TOKEN()}`, 'X-GitHub-Api-Version': '2022-11-28' } }
+      );
+      const info = await infoRes.json();
+      cachedSha = info.sha || null;
+    }
 
-    const putBody = {
-      message: 'update move',
-      content: btoa(csv)
-    };
-    // include sha if file already exists
-    if (info.sha) putBody.sha = info.sha;
+    const putBody = { message: 'update move', content: btoa(csv) };
+    if (cachedSha) putBody.sha = cachedSha;
 
     const putRes = await fetch(
       `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
@@ -183,14 +183,18 @@ async function pushMove(m) {
     );
 
     if (putRes.ok) {
+      const result = await putRes.json();
+      cachedSha = result.content.sha;  // ← update cache with new SHA
       pushEl.className = 'ok';
       pushEl.textContent = `liigutus → ${from} → ${to}  (${timestamp.slice(11,19)} UTC)`;
     } else {
       const err = await putRes.json();
+      cachedSha = null;  // ← invalidate cache on error so next attempt re-fetches
       pushEl.className = 'err';
       pushEl.textContent = `git error ${err.message}`;
     }
   } catch (e) {
+    cachedSha = null;
     pushEl.className = 'err';
     pushEl.textContent = `net error ${e.message}`;
   }
